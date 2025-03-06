@@ -1,0 +1,9 @@
+# .gitattributes
+
+* text=auto
+
+# Force LF endings for shell scripts, bats tests, Markdown, and YAML files
+*.sh   text eol=lf
+*.bats text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
