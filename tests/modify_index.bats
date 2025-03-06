@@ -64,3 +64,5 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"Creating backup index"* ]]
 }
+
+# TODO: add more tests
