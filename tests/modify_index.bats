@@ -65,4 +65,4 @@ teardown() {
   [[ "$output" == *"Creating backup index"* ]]
 }
 
-# TODO: add more tests
+# TODO: add more tests.
