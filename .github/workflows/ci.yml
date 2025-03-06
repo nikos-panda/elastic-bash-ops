@@ -31,32 +31,32 @@ jobs:
         id: changed-tests
         shell: bash
         run: |
-          # Determine the base commit for diffing:
-          # For pull_request events, GITHUB_BASE_REF is available.
-          # For push events, use GITHUB_EVENT_BEFORE (if not all zeros).
+          # Determine the base commit for diffing.
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            # For pull requests, use the target branch from GITHUB_BASE_REF.
             BASE=$(git rev-parse "$GITHUB_BASE_REF")
           else
-            if [ "$GITHUB_EVENT_BEFORE" != "0000000000000000000000000000000000000000" ]; then
-              BASE=$(git rev-parse "$GITHUB_EVENT_BEFORE")
+            # For push events, check if GITHUB_EVENT_BEFORE is valid.
+            if [ -z "${GITHUB_EVENT_BEFORE}" ] || [ "$GITHUB_EVENT_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              # Fallback for cases like the first commit on a branch.
+              BASE=$(git rev-parse origin/main)
             else
-              # Fallback if event.before is not available (e.g. first commit)
-              BASE=origin/main
+              BASE=$(git rev-parse "$GITHUB_EVENT_BEFORE")
             fi
           fi
 
           echo "Comparing changes between base commit: $BASE and HEAD: $GITHUB_SHA"
 
-          # Compute the list of changed files between BASE and HEAD
+          # Get the list of changed files between BASE and HEAD.
           changed_files=$(git diff --name-only "$BASE" "$GITHUB_SHA" || true)
           echo "Changed files: $changed_files"
 
-          # Build a list of test files that correspond to modified bin/ scripts or changed tests
+          # Build a list of test files corresponding to modified bin/ scripts or tests/.
           test_files=()
           for f in $changed_files; do
             if [[ "$f" == bin/* ]]; then
               filename=$(basename "$f")
-              # Map bin/script.sh to tests/script.bats
+              # Map, for example: bin/script.sh -> tests/script.bats
               test_file="tests/${filename%.sh}.bats"
               if [ -f "$test_file" ]; then
                 test_files+=("$test_file")
@@ -66,10 +66,10 @@ jobs:
             fi
           done
 
-          # Remove duplicate entries
+          # Remove duplicates.
           readarray -t unique_tests < <(printf "%s\n" "${test_files[@]}" | sort -u)
 
-          # If no test file is detected, run all tests as a fallback.
+          # Run all tests if no individual test was detected.
           if [ ${#unique_tests[@]} -eq 0 ]; then
             echo "No specific tests identified based on the changes. Running all tests."
             unique_tests=(tests/*.bats)
