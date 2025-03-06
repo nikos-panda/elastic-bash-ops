@@ -5,6 +5,7 @@
 
 setup() {
   # Prepend the mocks folder to PATH so that "curl" calls will use our mock.
+  echo "test setup"
   export PATH="$(pwd)/tests/mocks:$PATH"
   # Create a temporary directory if needed.
   TMPDIR=$(mktemp -d)
