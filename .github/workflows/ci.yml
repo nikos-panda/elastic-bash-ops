@@ -86,6 +86,10 @@ jobs:
           echo "Test files selected: ${unique_tests[@]}"
           echo "TEST_FILES=${unique_tests[*]}" >> "$GITHUB_OUTPUT"
 
+      - name: Make sure contents of bin/ are executable
+        run: |
+          chmod +x bin/*.sh
+
       - name: Run changed tests
         run: |
           echo "Running tests: $TEST_FILES"
