@@ -19,7 +19,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          # We need the full history so that git diff works properly.
           fetch-depth: 0
 
       - name: Install bats
@@ -31,32 +30,42 @@ jobs:
         id: changed-tests
         shell: bash
         run: |
-          # Determine the base commit for diffing.
+          # Determine a base commit to diff against.
+          # For pull requests, we use the merge-base of HEAD and the target branch.
+          # For push events, if pushing to main then use HEAD~1 (if available), otherwise use merge-base between HEAD and origin/main.
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            # For pull requests, use the target branch from GITHUB_BASE_REF.
-            BASE=$(git rev-parse "$GITHUB_BASE_REF")
+            echo "Pull request detected. GITHUB_BASE_REF: $GITHUB_BASE_REF"
+            BASE=$(git merge-base HEAD origin/"$GITHUB_BASE_REF")
           else
-            # For push events, check if GITHUB_EVENT_BEFORE is valid.
-            if [ -z "${GITHUB_EVENT_BEFORE}" ] || [ "$GITHUB_EVENT_BEFORE" = "0000000000000000000000000000000000000000" ]; then
-              # Fallback for cases like the first commit on a branch.
-              BASE=$(git rev-parse origin/main)
+            echo "Push event on ref: $GITHUB_REF"
+            if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+              if git rev-parse HEAD~1 >/dev/null 2>&1; then
+                BASE=$(git rev-parse HEAD~1)
+              else
+                BASE=""
+              fi
             else
-              BASE=$(git rev-parse "$GITHUB_EVENT_BEFORE")
+              BASE=$(git merge-base HEAD origin/main)
             fi
           fi
 
-          echo "Comparing changes between base commit: $BASE and HEAD: $GITHUB_SHA"
+          if [ -z "$BASE" ]; then
+            echo "No valid base commit found. Running all tests."
+            changed_files=$(git ls-files | grep -E '^(bin/|tests/)')
+          else
+            echo "Comparing changes between base commit: $BASE and HEAD: $GITHUB_SHA"
+            changed_files=$(git diff --name-only "$BASE" HEAD || true)
+          fi
 
-          # Get the list of changed files between BASE and HEAD.
-          changed_files=$(git diff --name-only "$BASE" "$GITHUB_SHA" || true)
-          echo "Changed files: $changed_files"
+          echo "Changed files:"
+          echo "$changed_files"
 
-          # Build a list of test files corresponding to modified bin/ scripts or tests/.
+          # Build a list of test files to run based on changes.
           test_files=()
           for f in $changed_files; do
             if [[ "$f" == bin/* ]]; then
               filename=$(basename "$f")
-              # Map, for example: bin/script.sh -> tests/script.bats
+              # Convert bin/script.sh to tests/script.bats.
               test_file="tests/${filename%.sh}.bats"
               if [ -f "$test_file" ]; then
                 test_files+=("$test_file")
@@ -69,9 +78,8 @@ jobs:
           # Remove duplicates.
           readarray -t unique_tests < <(printf "%s\n" "${test_files[@]}" | sort -u)
 
-          # Run all tests if no individual test was detected.
           if [ ${#unique_tests[@]} -eq 0 ]; then
-            echo "No specific tests identified based on the changes. Running all tests."
+            echo "No specific test files identified based on diff. Running all tests."
             unique_tests=(tests/*.bats)
           fi
 
