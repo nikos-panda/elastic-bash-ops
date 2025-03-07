@@ -2,8 +2,9 @@
 
 * text=auto
 
-# Force LF endings for shell scripts, bats tests, Markdown, and YAML files
+# Force LF endings for shell scripts, bats tests, Markdown, YAML and JSON files
 *.sh   text eol=lf
 *.bats text eol=lf
 *.md   text eol=lf
 *.yml  text eol=lf
+*.json text eol=lf
