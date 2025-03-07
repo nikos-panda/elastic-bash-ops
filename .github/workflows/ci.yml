@@ -15,6 +15,18 @@ on:
 jobs:
   run-tests:
     runs-on: ubuntu-latest
+    services:
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:7.15.2
+        ports:
+          - 9200:9200
+        options: > 
+          --health-cmd="curl -f http://localhost:9200/_cluster/health || exit 1" 
+          --health-interval=10s 
+          --health-timeout=5s 
+          --health-retries=5
+        env:
+          discovery.type: single-node
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -24,7 +36,19 @@ jobs:
       - name: Install bats
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y bats
+          sudo apt-get install -y bats jq
+
+      - name: Wait for Elasticsearch to be ready
+        run: |
+          echo "Waiting for Elasticsearch to be ready..."
+          for i in {1..10}; do
+            if curl -s http://localhost:9200 >/dev/null; then
+              echo "Elasticsearch is ready!"
+              break
+            fi
+            echo "Waiting for Elasticsearch..."
+            sleep 10
+          done
 
       - name: Determine changed test files
         id: changed-tests
