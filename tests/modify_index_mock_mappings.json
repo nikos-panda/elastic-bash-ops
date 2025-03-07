@@ -1,0 +1,168 @@
+{
+  "_source": {
+    "excludes": [
+      "facets.content"
+    ]
+  },
+  "dynamic_templates": [
+    {
+      "template_uri": {
+        "path_match": "*.uri",
+        "mapping": {
+          "fields": {
+            "keyword": {
+              "ignore_above": 256,
+              "type": "keyword"
+            }
+          },
+          "type": "text"
+        }
+      }
+    },
+    {
+      "template_type": {
+        "path_match": "*.type",
+        "mapping": {
+          "fields": {
+            "keyword": {
+              "ignore_above": 256,
+              "type": "keyword"
+            }
+          },
+          "type": "text"
+        }
+      }
+    },
+    {
+      "template_references": {
+        "path_match": "data.references.*",
+        "mapping": {
+          "fields": {
+            "keyword": {
+              "ignore_above": 256,
+              "type": "keyword"
+            }
+          },
+          "type": "text"
+        }
+      }
+    },
+    {
+      "template_string": {
+        "path_match": "*.xsd:string",
+        "mapping": {
+          "fields": {
+            "keyword": {
+              "ignore_above": 256,
+              "type": "keyword"
+            }
+          },
+          "type": "text"
+        }
+      }
+    },
+    {
+      "template_english": {
+        "path_match": "*.en",
+        "mapping": {
+          "analyzer": "english_standard",
+          "fielddata": true,
+          "fields": {
+            "exact": {
+              "fielddata": true,
+              "analyzer": "exact",
+              "type": "text"
+            }
+          },
+          "search_analyzer": "english_standard",
+          "type": "text"
+        }
+      }
+    },
+    {
+      "template_german": {
+        "path_match": "*.de",
+        "mapping": {
+          "analyzer": "german_standard",
+          "fielddata": true,
+          "fields": {
+            "exact": {
+              "fielddata": true,
+              "analyzer": "exact",
+              "type": "text"
+            }
+          },
+          "search_analyzer": "german_standard",
+          "type": "text"
+        }
+      }
+    },
+    {
+      "template_italian": {
+        "path_match": "*.it",
+        "mapping": {
+          "analyzer": "italian_standard",
+          "fielddata": true,
+          "fields": {
+            "exact": {
+              "fielddata": true,
+              "analyzer": "exact",
+              "type": "text"
+            }
+          },
+          "search_analyzer": "italian_standard",
+          "type": "text"
+        }
+      }
+    },
+    {
+      "template_french": {
+        "path_match": "*.fr",
+        "mapping": {
+          "analyzer": "french_standard",
+          "fielddata": true,
+          "fields": {
+            "exact": {
+              "fielddata": true,
+              "analyzer": "exact",
+              "type": "text"
+            }
+          },
+          "search_analyzer": "french_standard",
+          "type": "text"
+        }
+      }
+    }
+  ],
+  "properties": {
+    "data": {
+      "properties": {
+        "something_entirely_else": "its_value"
+      }
+    },
+    "facets": {
+      "properties": {
+        "something_else": "its_value"
+      }
+    },
+    "graph": {
+      "type": "text",
+      "fields": {
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 256
+        }
+      }
+    },
+    "included": {
+      "properties": {
+        "property1": {
+          "something": "its_value"
+        }
+      }
+    },
+    "timestamps": {
+      "type": "long"
+    }
+  }
+}
