@@ -1,68 +1,254 @@
 #!/usr/bin/env bats
-# tests/modify_index/modify_index.bats
-# These tests verify error conditions and key behaviors of the modify_index script.
-# The tests override PATH to use our curl mock so that no real HTTP calls are made.
+# tests/modify_index.bats
 
 setup() {
-  # Prepend the mocks folder to PATH so that "curl" calls will use our mock.
-  export PATH="$(pwd)/tests/mocks:$PATH"
-  # Create a temporary directory if needed.
-  TMPDIR=$(mktemp -d)
+  fake_dir=$(mktemp -d)
+  export PATH="$fake_dir:$PATH"
+
+  # Write a fake curl script that simulates Elasticsearch API responses.
+  # This fake version checks the URL being accessed and returns predictable
+  # responses (body plus an HTTP code, on separate lines), as expected by the script.
+  cat > "$fake_dir/curl" <<'EOF'
+#!/bin/bash
+
+if [[ "${FAKE_CURL_FAIL:-0}" -eq 1 ]]; then
+    echo "Simulated curl failure" >&2
+    exit 1
+fi
+
+# Find the URL argument (first argument starting with http:// or https://)
+url=""
+for arg in "$@"; do
+    case "$arg" in
+        http://*|https://*) url="$arg"; break ;;
+    esac
+done
+
+case "$url" in
+    *"_cat/indices?format=json"*)
+        # Return fake JSON for indices list.
+        body="${FAKE_CAT_INDICES:-'[ {\"index\": \"source_index\"} ]'}"
+        echo "$body"
+        echo "200"
+        exit 0
+        ;;
+    *"/_alias/"*)
+        # For alias check calls, return the fake status (default 404 = not found)
+        echo "${FAKE_ALIAS_STATUS:-404}"
+        exit 0
+        ;;
+    *"/_reindex"*)
+        echo "reindexed"
+        echo "200"
+        exit 0
+        ;;
+    *"/_settings"*)
+        echo "settings updated"
+        echo "200"
+        exit 0
+        ;;
+    *"/_mapping"*)
+        echo "mappings updated"
+        echo "200"
+        exit 0
+        ;;
+    *"/_close"*)
+        echo "closed"
+        echo "200"
+        exit 0
+        ;;
+    *"/_open"*)
+        echo "opened"
+        echo "200"
+        exit 0
+        ;;
+    *)
+        # For other calls—for creation, deletion, etc.—simulate based on -X option.
+        if [[ " $* " =~ " -X DELETE " ]]; then
+            echo "deleted"
+        elif [[ " $* " =~ " -X PUT " ]]; then
+            echo "created"
+        elif [[ " $* " =~ " -X POST " ]]; then
+            echo "post ok"
+        else
+            echo "OK"
+        fi
+        echo "200"
+        exit 0
+        ;;
+esac
+EOF
+  chmod +x "$fake_dir/curl"
 }
 
 teardown() {
-  rm -rf "$TMPDIR"
+  rm -rf "$fake_dir"
 }
 
-@test "Displays usage when --help is provided" {
-  run ./bin/modify_index.sh --help
-  # The usage function calls exit, so we expect non-zero exit code.
-  [ "$status" -eq 1 ]
+SCRIPT="./bin/modify_index.sh"
+
+###############################################################################
+# Test: Missing required arguments
+###############################################################################
+@test "Display usage when required arguments are missing" {
+  run "$SCRIPT" --host "http://localhost:9200"
+  [[ "$status" -ne 0 ]]
+  [[ "$output" == *"Missing required arguments"* ]]
   [[ "$output" == *"Usage:"* ]]
 }
 
-@test "Fails when required arguments are missing" {
-  run ./bin/modify_index.sh --dest newindex --host http://fake:9200
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"Missing required arguments:"* ]]
+###############################################################################
+# Test: Help option
+###############################################################################
+@test "Display help message with -h flag" {
+  run "$SCRIPT" -h
+  [[ "$status" -ne 0 ]]
+  [[ "$output" == *"Usage:"* ]]
 }
 
-@test "Fails when source equals destination index" {
-  run ./bin/modify_index.sh --source duplicate --dest duplicate --host http://fake:9200
-  [ "$status" -ne 0 ]
+###############################################################################
+# Test: Source and destination indexes identical
+###############################################################################
+@test "Error when source and destination indexes are the same" {
+  run "$SCRIPT" --source idx1 --dest idx1 --host "http://localhost:9200"
+  [[ "$status" -ne 0 ]]
   [[ "$output" == *"Source index and destination index cannot be the same"* ]]
 }
 
-@test "Errors when a settings file is provided but does not exist" {
-  run ./bin/modify_index.sh --source test_source --dest test_dest --host http://fake:9200 --settings missing_settings.json
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"Settings file 'missing_settings.json' not found"* ]]
+###############################################################################
+# Test: jq dependency missing (simulate by temporarily removing jq from PATH)
+###############################################################################
+@test "Error when jq is not installed" {
+  original_PATH=$PATH
+  fake_only_dir=$(mktemp -d)
+  cp "$fake_dir/curl" "$fake_only_dir/"
+  PATH="$fake_only_dir"
+
+  run "$SCRIPT" --source idx1 --dest idx2 --host "http://localhost:9200"
+  [[ "$status" -ne 0 ]]
+  [[ "$output" == *"jq is not installed"* ]]
+
+  PATH="$original_PATH"
+  rm -rf "$fake_only_dir"
 }
 
-@test "Processes non-interactive alias overwrite" {
-  # Ensure that the index list returns the source index.
-  export MOCK_INDICES='[{"index": "test_source"}]'
-  # Simulate that the alias already exists.
-  export MOCK_ALIAS_EXISTS="true"
-  # Run with the non-interactive flag so the script auto-overwrites the alias.
-  run ./bin/modify_index.sh --source test_source --dest test_dest --host http://fake:9200 --alias test_alias --noninteractive
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"Non-interactive mode: Overwriting alias 'test_alias'"* ]]
+###############################################################################
+# Test: Source index not found in fake indices list
+###############################################################################
+@test "Error when source index is missing from the list" {
+  export FAKE_CAT_INDICES='[{"index": "other_index"}]'
+  run "$SCRIPT" --source missing_index --dest new_index --host "http://localhost:9200"
+  [[ "$status" -ne 0 ]]
+  [[ "$output" == *"Source index 'missing_index' does not exist."* ]]
+  unset FAKE_CAT_INDICES
 }
 
-@test "Forces deletion of destination index when --force is set and dest already exists" {
-  # Simulate that both the source and destination indices exist.
-  export MOCK_INDICES='[{"index": "test_source"}, {"index": "test_dest"}]'
-  run ./bin/modify_index.sh --source test_source --dest test_dest --host http://fake:9200 --force
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"Forcing deletion of existing destination index 'test_dest'"* ]]
+###############################################################################
+# Test: Destination index already exists without --force
+###############################################################################
+@test "Error when destination index already exists without --force" {
+  export FAKE_CAT_INDICES='[{"index": "src_idx"}, {"index": "dest_idx"}]'
+  run "$SCRIPT" --source src_idx --dest dest_idx --host "http://localhost:9200"
+  [[ "$status" -ne 0 ]]
+  [[ "$output" == *"Destination index 'dest_idx' already exists. Use --force to delete it."* ]]
+  unset FAKE_CAT_INDICES
 }
 
-@test "Creates a backup when --backup is used" {
-  export MOCK_INDICES='[{"index": "test_source"}]'
-  run ./bin/modify_index.sh --source test_source --dest test_dest --host http://fake:9200 --backup
-  [ "$status" -eq 0 ]
+###############################################################################
+# Test: Successful run when destination index does not exist
+###############################################################################
+@test "Successful index creation when destination does not exist" {
+  export FAKE_CAT_INDICES='[{"index": "src_idx"}]'
+  run "$SCRIPT" --source src_idx --dest dest_idx --host "http://localhost:9200" --noninteractive
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"Creating destination index 'dest_idx'"* ]]
+  [[ "$output" == *"Index modification completed successfully."* ]]
+  unset FAKE_CAT_INDICES
+}
+
+###############################################################################
+# Test: Successful run with backup and replace options enabled
+###############################################################################
+@test "Successful run with backup and replace options" {
+  export FAKE_CAT_INDICES='[{"index": "src_idx"}]'
+  run "$SCRIPT" --source src_idx --dest dest_idx --host "http://localhost:9200" --backup --replace --noninteractive
+  [[ "$status" -eq 0 ]]
   [[ "$output" == *"Creating backup index"* ]]
+  [[ "$output" == *"Reindexing data from backup"* ]]
+  [[ "$output" == *"Deleting source index 'src_idx'"* ]]
+  unset FAKE_CAT_INDICES
 }
 
-# TODO: add more tests
+###############################################################################
+# Test: Settings file provided but not found
+###############################################################################
+@test "Error when settings file is provided but not found" {
+  export FAKE_CAT_INDICES='[{"index": "src_idx"}]'
+  run "$SCRIPT" --source src_idx --dest dest_idx --host "http://localhost:9200" --settings non_existing_file.json --noninteractive
+  [[ "$status" -ne 0 ]]
+  [[ "$output" == *"Settings file 'non_existing_file.json' not found."* ]]
+  unset FAKE_CAT_INDICES
+}
+
+###############################################################################
+# Test: Mappings file provided but not found
+###############################################################################
+@test "Error when mappings file is provided but not found" {
+  export FAKE_CAT_INDICES='[{"index": "src_idx"}]'
+  run "$SCRIPT" --source src_idx --dest dest_idx --host "http://localhost:9200" --mappings non_existing_mapping.json --noninteractive
+  [[ "$status" -ne 0 ]]
+  [[ "$output" == *"Mappings file 'non_existing_mapping.json' not found."* ]]
+  unset FAKE_CAT_INDICES
+}
+
+###############################################################################
+# Test: Non-interactive alias assignment (simulate alias already exists)
+###############################################################################
+@test "Non-interactive alias assignment overwrites existing alias" {
+  export FAKE_CAT_INDICES='[{"index": "src_idx"}]'
+  export FAKE_ALIAS_STATUS=200  # Simulate that the alias exists.
+  run "$SCRIPT" --source src_idx --dest dest_idx --host "http://localhost:9200" --alias myalias --noninteractive
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"Non-interactive mode: Overwriting alias 'myalias'"* ]]
+  unset FAKE_CAT_INDICES
+  unset FAKE_ALIAS_STATUS
+}
+
+###############################################################################
+# Test: Interactive alias check with user abort (simulate option 2)
+###############################################################################
+@test "Interactive alias check aborts when user selects abort option" {
+  export FAKE_CAT_INDICES='[{"index": "src_idx"}]'
+  export FAKE_ALIAS_STATUS=200
+  run bash -c "printf '2\n' | $SCRIPT --source src_idx --dest dest_idx --host http://localhost:9200 --alias myalias"
+  [[ "$status" -ne 0 ]]
+  [[ "$output" == *"User aborted."* ]]
+  unset FAKE_CAT_INDICES
+  unset FAKE_ALIAS_STATUS
+}
+
+###############################################################################
+# Test: Interactive alias check with new alias specification (simulate option 3)
+###############################################################################
+@test "Interactive alias check prompts for new alias and proceeds" {
+  export FAKE_CAT_INDICES='[{"index": "src_idx"}]'
+  export FAKE_ALIAS_STATUS=200
+  run bash -c "printf '3\nnewalias\n1\n' | $SCRIPT --source src_idx --dest dest_idx --host http://localhost:9200 --alias myalias"
+  [[ "$status" -eq 0 ]]
+  [[ "$output" == *"Assigning alias 'newalias' to destination index 'dest_idx'"* ]]
+  unset FAKE_CAT_INDICES
+  unset FAKE_ALIAS_STATUS
+}
+
+###############################################################################
+# Test: Simulate curl command failure
+###############################################################################
+@test "Script exits when curl fails" {
+  export FAKE_CAT_INDICES='[{"index": "src_idx"}]'
+  export FAKE_CURL_FAIL=1
+  run "$SCRIPT" --source src_idx --dest dest_idx --host "http://localhost:9200" --noninteractive
+  [[ "$status" -ne 0 ]]
+  [[ "$output" == *"Simulated curl failure"* ]]
+  unset FAKE_CAT_INDICES
+  unset FAKE_CURL_FAIL
+}
