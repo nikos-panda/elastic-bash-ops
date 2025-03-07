@@ -243,15 +243,14 @@ assert_contains() {
   
   # Verify that the destination index settings match what we provided.
   dest_settings=$(curl -s "$ES_HOST/test_dest_config/_settings")
-  shards=$(echo "$dest_settings" | jq -r '.[].settings.index.number_of_shards')
-  [ "$shards" = "1" ]
+  settings_test=$(echo "$dest_settings" | jq -r '.[].settings.index.analysis.filter.french_stop.type')
+  [ "$settings_test" = "stop" ]
   
-  # Verify that the destination index mappings include "field1".
+  # Same as above for mapping
   dest_mappings=$(curl -s "$ES_HOST/test_dest_config/_mapping")
-  has_field=$(echo "$dest_mappings" | jq '.[].mappings.properties | has("field1")')
-  [ "$has_field" = "true" ]
+  mappings_test=$(echo "$dest_mappings" | jq '.[].mappings.properties.included.properties.property1.type')
+  [ "$mappings_test" = "text" ]
   
-  rm -f "$settings_file" "$mappings_file"
   delete_index "test_src_config"
   delete_index "test_dest_config"
 }
