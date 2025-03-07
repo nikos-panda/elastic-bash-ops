@@ -13,7 +13,7 @@ fi
 BACKUP=${BACKUP:-false}
 REPLACE=${REPLACE:-false}
 FORCE=${FORCE:-false}
-INTERACTIVE=${INTERACTIVE:-true}     # Use --noninteractive flag to set to false.
+INTERACTIVE=${INTERACTIVE:-true}
 SOURCE_INDEX=${SOURCE_INDEX:-""}
 DEST_INDEX=${DEST_INDEX:-""}
 SETTINGS_FILE=${SETTINGS_FILE:-""}
