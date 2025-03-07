@@ -4,8 +4,7 @@
 # Integration tests for “bin/modify_index.sh” against an Elasticsearch instance at http://localhost:9200.
 # These tests populate ES with dummy source data as needed, create temporary settings/mappings
 # files for one test, and remove any indices created during the test.
-#
-# Set the Elasticsearch host and the location of our script.
+
 ES_HOST="http://localhost:9200"
 SCRIPT="./bin/modify_index.sh"
 
