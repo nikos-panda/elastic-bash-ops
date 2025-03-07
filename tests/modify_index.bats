@@ -3,7 +3,7 @@
 # tests/modify_index.bats
 
 ES_HOST="http://localhost:9200"
-SCRIPT="./script.sh"
+SCRIPT="./bin/modify_index.sh"
 
 #-------------------------------------------------------------------------
 # Helper functions for Elasticsearch operations
