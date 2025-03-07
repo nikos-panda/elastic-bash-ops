@@ -2,6 +2,21 @@
 #
 # tests/modify_index.bats
 
+#-------------------------------------------------------------------------
+# Global Setup / Teardown: create and remove .env file to override logging
+#-------------------------------------------------------------------------
+setup() {
+  cat > .env <<'EOF'
+log_info() {
+    echo "[INFO] $*" >&2
+}
+EOF
+}
+
+teardown() {
+  rm -f .env
+}
+
 ES_HOST="http://localhost:9200"
 SCRIPT="./bin/modify_index.sh"
 
@@ -84,14 +99,6 @@ assert_contains() {
   run $SCRIPT --source test_nonexist_src --dest test_new_dest --host "$ES_HOST" --noninteractive
   [ "$status" -ne 0 ]
   expected="Source index 'test_nonexist_src' does not exist."
-  if [[ "$output" != *"$expected"* ]]; then
-      echo "---------- DEBUG ----------"
-      echo "Test: ${BATS_TEST_NAME}"
-      echo "Expected output to contain: '$expected'"
-      echo "Actual output:"
-      echo "$output"
-      echo "---------------------------"
-  fi
   assert_contains "$expected"
   
   # Cleanup destination index if it was inadvertently created.
@@ -112,14 +119,6 @@ assert_contains() {
   run $SCRIPT --source test_src_exist --dest test_dest_exist --host "$ES_HOST" --noninteractive
   [ "$status" -ne 0 ]
   expected="Destination index 'test_dest_exist' already exists. Use --force to delete it."
-  if [[ "$output" != *"$expected"* ]]; then
-      echo "---------- DEBUG ----------"
-      echo "Test: ${BATS_TEST_NAME}"
-      echo "Expected output to contain: '$expected'"
-      echo "Actual output:"
-      echo "$output"
-      echo "---------------------------"
-  fi
   assert_contains "$expected"
   
   # Cleanup indices.
@@ -170,14 +169,6 @@ assert_contains() {
   [ "$status" -eq 0 ]
   
   expected_backup="Creating backup index"
-  if [[ "$output" != *"$expected_backup"* ]]; then
-      echo "---------- DEBUG ----------"
-      echo "Test: ${BATS_TEST_NAME}"
-      echo "Expected output to contain: '$expected_backup'"
-      echo "Actual output:"
-      echo "$output"
-      echo "---------------------------"
-  fi
   assert_contains "$expected_backup"
   assert_contains "Reindexing data from backup"
   assert_contains "Deleting source index 'test_src_backup'"
@@ -210,14 +201,6 @@ assert_contains() {
   run $SCRIPT --source test_src_settings --dest test_dest_settings --host "$ES_HOST" --settings non_existent_settings.json --noninteractive
   [ "$status" -ne 0 ]
   expected="Settings file 'non_existent_settings.json' not found."
-  if [[ "$output" != *"$expected"* ]]; then
-      echo "---------- DEBUG ----------"
-      echo "Test: ${BATS_TEST_NAME}"
-      echo "Expected output to contain: '$expected'"
-      echo "Actual output:"
-      echo "$output"
-      echo "---------------------------"
-  fi
   assert_contains "$expected"
   
   delete_index "test_src_settings"
@@ -235,14 +218,6 @@ assert_contains() {
   run $SCRIPT --source test_src_mappings --dest test_dest_mappings --host "$ES_HOST" --mappings non_existent_mappings.json --noninteractive
   [ "$status" -ne 0 ]
   expected="Mappings file 'non_existent_mappings.json' not found."
-  if [[ "$output" != *"$expected"* ]]; then
-      echo "---------- DEBUG ----------"
-      echo "Test: ${BATS_TEST_NAME}"
-      echo "Expected output to contain: '$expected'"
-      echo "Actual output:"
-      echo "$output"
-      echo "---------------------------"
-  fi
   assert_contains "$expected"
   
   delete_index "test_src_mappings"
@@ -319,14 +294,6 @@ EOF
   run bash -c "printf '2\n' | $SCRIPT --source test_src_int_alias --dest test_dest_int_alias --host \"$ES_HOST\" --alias testalias"
   [ "$status" -ne 0 ]
   expected="User aborted."
-  if [[ "$output" != *"$expected"* ]]; then
-      echo "---------- DEBUG ----------"
-      echo "Test: ${BATS_TEST_NAME}"
-      echo "Expected output to contain: '$expected'"
-      echo "Actual output:"
-      echo "$output"
-      echo "---------------------------"
-  fi
   assert_contains "$expected"
   
   delete_index "test_src_int_alias"
@@ -353,14 +320,6 @@ EOF
   run bash -c "printf '3\nnewalias\n1\n' | $SCRIPT --source test_src_int_alias2 --dest test_dest_int_alias2 --host \"$ES_HOST\" --alias testalias"
   [ "$status" -eq 0 ]
   expected="Assigning alias 'newalias' to destination index 'test_dest_int_alias2'"
-  if [[ "$output" != *"$expected"* ]]; then
-      echo "---------- DEBUG ----------"
-      echo "Test: ${BATS_TEST_NAME}"
-      echo "Expected output to contain: '$expected'"
-      echo "Actual output:"
-      echo "$output"
-      echo "---------------------------"
-  fi
   assert_contains "$expected"
   
   # Verify via ES that the new alias is associated with the destination index.
@@ -383,14 +342,6 @@ EOF
   run $SCRIPT --source test_src_alias2 --dest test_dest_alias2 --host "$ES_HOST" --alias testalias2 --noninteractive
   [ "$status" -eq 0 ]
   expected="Assigning alias 'testalias2' to destination index 'test_dest_alias2'"
-  if [[ "$output" != *"$expected"* ]]; then
-      echo "---------- DEBUG ----------"
-      echo "Test: ${BATS_TEST_NAME}"
-      echo "Expected output to contain: '$expected'"
-      echo "Actual output:"
-      echo "$output"
-      echo "---------------------------"
-  fi
   assert_contains "$expected"
   
   # Verify via ES that the alias exists on the destination index.
