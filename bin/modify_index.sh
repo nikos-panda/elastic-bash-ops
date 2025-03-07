@@ -1,7 +1,8 @@
 #!/bin/bash
 set -Eeuo pipefail
 
-# Optionally load environment variables from a file (if it exists)
+# -----------------------------------------------------------------------------
+# Optionally load environment variables from a file (if present)
 if [ -f ".env" ]; then
     # shellcheck source=/dev/null
     source ".env"
@@ -12,7 +13,7 @@ fi
 BACKUP=${BACKUP:-false}
 REPLACE=${REPLACE:-false}
 FORCE=${FORCE:-false}
-INTERACTIVE=${INTERACTIVE:-true}     # Set to false using the --noninteractive flag.
+INTERACTIVE=${INTERACTIVE:-true}     # Use --noninteractive flag to set to false.
 SOURCE_INDEX=${SOURCE_INDEX:-""}
 DEST_INDEX=${DEST_INDEX:-""}
 SETTINGS_FILE=${SETTINGS_FILE:-""}
@@ -23,16 +24,16 @@ USERNAME=${USERNAME:-""}
 PASSWORD=${PASSWORD:-""}
 
 # -----------------------------------------------------------------------------
-# Logging Functions
+# Logging Functions (redirecting all logs to stderr so stdout remains clean)
 log_info() {
-    echo "[INFO] $*"
+    >&2 echo "[INFO] $*"
 }
 log_error() {
-    echo "[ERROR] $*" >&2
+    >&2 echo "[ERROR] $*"
 }
 
 # -----------------------------------------------------------------------------
-# Usage function displays help
+# Display usage information
 usage() {
     cat <<EOF
 Usage: $0 [OPTIONS]
@@ -56,7 +57,7 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
-# Command-line argument parsing
+# Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         --backup) BACKUP=true ;;
@@ -78,26 +79,26 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # -----------------------------------------------------------------------------
-# Validate required arguments
+# Validate required parameters
 if [[ -z "$SOURCE_INDEX" || -z "$DEST_INDEX" || -z "$ELASTIC_HOST" ]]; then
     log_error "Missing required arguments: --source, --dest, and --host are mandatory."
     usage
 fi
 
 if [[ "$SOURCE_INDEX" == "$DEST_INDEX" ]]; then
-    log_error "Error: Source index and destination index cannot be the same."
+    log_error "Source index and destination index cannot be the same."
     exit 1
 fi
 
 # -----------------------------------------------------------------------------
-# Ensure required dependency 'jq' is installed
+# Ensure that dependency 'jq' is installed
 if ! command -v jq &>/dev/null; then
-    log_error "jq is not installed. Install it (e.g., sudo apt install jq) and try again."
+    log_error "jq is not installed. Please install it (e.g., sudo apt install jq) and try again."
     exit 1
 fi
 
 # -----------------------------------------------------------------------------
-# run_curl: Execute a curl request with proper error handling.
+# run_curl: Execute a curl request and output only the response body to stdout.
 run_curl() {
     local path=$1
     shift
@@ -108,8 +109,10 @@ run_curl() {
     local url="${ELASTIC_HOST}${path}"
     log_info "Requesting: ${url}"
     local response status_code
+    # Append the HTTP code to the response. The last line will be the status.
     response=$(curl "${auth_opts[@]}" -s -w "\n%{http_code}" "$url" "$@") || exit 1
     status_code=$(echo "$response" | tail -n 1)
+    # Output only the body (all but the last line)
     echo "$response" | head -n -1
     if [[ ! "$status_code" =~ ^2 ]]; then
         log_error "Request to $url failed with status code $status_code"
@@ -118,7 +121,7 @@ run_curl() {
 }
 
 # -----------------------------------------------------------------------------
-# check_alias: Checks if an alias exists. In interactive mode, ask the user for confirmation.
+# check_alias: Verify if the alias exists and, in interactive mode, ask for confirmation.
 check_alias() {
     if [[ -z "$ALIAS" ]]; then
         return
@@ -140,7 +143,6 @@ check_alias() {
                     *) echo "Invalid selection, please try again." ;;
                 esac
             else
-                # In non-interactive mode, default to reassigning the alias.
                 log_info "Non-interactive mode: Overwriting alias '$ALIAS'."
                 break
             fi
@@ -151,7 +153,7 @@ check_alias() {
 }
 
 # -----------------------------------------------------------------------------
-# Fetch current indices
+# Query current indices and verify that SOURCE_INDEX exists.
 existing_indices=$(run_curl "/_cat/indices?format=json" | jq -r '.[].index')
 
 if ! echo "$existing_indices" | grep -qw "$SOURCE_INDEX"; then
@@ -170,7 +172,7 @@ if echo "$existing_indices" | grep -qw "$DEST_INDEX"; then
 fi
 
 # -----------------------------------------------------------------------------
-# Create a backup of the source index (if requested)
+# Optionally create a backup of the source index
 if [[ "$BACKUP" == "true" ]]; then
     backup_index="${SOURCE_INDEX}-backup-$(date '+%Y%m%d')"
     log_info "Creating backup index '$backup_index'."
@@ -182,14 +184,13 @@ if [[ "$BACKUP" == "true" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Create a new destination index and configure it
+# Create and configure the destination index
 log_info "Creating destination index '$DEST_INDEX'."
 run_curl "/${DEST_INDEX}" -X PUT
 
 log_info "Closing index '$DEST_INDEX' for configuration."
 run_curl "/${DEST_INDEX}/_close" -X POST
 
-# Apply new settings if a settings file is provided
 if [[ -n "$SETTINGS_FILE" ]]; then
     if [[ ! -f "$SETTINGS_FILE" ]]; then
         log_error "Settings file '$SETTINGS_FILE' not found."
@@ -199,7 +200,6 @@ if [[ -n "$SETTINGS_FILE" ]]; then
     run_curl "/${DEST_INDEX}/_settings?pretty" -X PUT -H "Content-Type: application/json" --data-binary "@${SETTINGS_FILE}"
 fi
 
-# Apply new mappings if a mappings file is provided
 if [[ -n "$MAPPINGS_FILE" ]]; then
     if [[ ! -f "$MAPPINGS_FILE" ]]; then
         log_error "Mappings file '$MAPPINGS_FILE' not found."
@@ -209,11 +209,9 @@ if [[ -n "$MAPPINGS_FILE" ]]; then
     run_curl "/${DEST_INDEX}/_mapping?pretty" -X PUT -H "Content-Type: application/json" --data-binary "@${MAPPINGS_FILE}"
 fi
 
-# Reopen the destination index
 log_info "Reopening index '$DEST_INDEX'."
 run_curl "/${DEST_INDEX}/_open" -X POST
 
-# Reindex backup into the new destination if a backup was taken
 if [[ "$BACKUP" == "true" ]]; then
     log_info "Reindexing data from backup '$backup_index' to '$DEST_INDEX'."
     run_curl "/_reindex?pretty" -X POST -H "Content-Type: application/json" -d "
@@ -223,7 +221,6 @@ if [[ "$BACKUP" == "true" ]]; then
 }"
 fi
 
-# Optionally delete the source index if --replace is specified
 if [[ "$REPLACE" == "true" ]]; then
     log_info "Deleting source index '$SOURCE_INDEX'."
     run_curl "/${SOURCE_INDEX}" -X DELETE
