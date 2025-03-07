@@ -9,13 +9,13 @@
       "template_uri": {
         "path_match": "*.uri",
         "mapping": {
+          "type": "text",
           "fields": {
             "keyword": {
-              "ignore_above": 256,
-              "type": "keyword"
+              "type": "keyword",
+              "ignore_above": 256
             }
-          },
-          "type": "text"
+          }
         }
       }
     },
@@ -23,13 +23,13 @@
       "template_type": {
         "path_match": "*.type",
         "mapping": {
+          "type": "text",
           "fields": {
             "keyword": {
-              "ignore_above": 256,
-              "type": "keyword"
+              "type": "keyword",
+              "ignore_above": 256
             }
-          },
-          "type": "text"
+          }
         }
       }
     },
@@ -37,13 +37,13 @@
       "template_references": {
         "path_match": "data.references.*",
         "mapping": {
+          "type": "text",
           "fields": {
             "keyword": {
-              "ignore_above": 256,
-              "type": "keyword"
+              "type": "keyword",
+              "ignore_above": 256
             }
-          },
-          "type": "text"
+          }
         }
       }
     },
@@ -51,13 +51,13 @@
       "template_string": {
         "path_match": "*.xsd:string",
         "mapping": {
+          "type": "text",
           "fields": {
             "keyword": {
-              "ignore_above": 256,
-              "type": "keyword"
+              "type": "keyword",
+              "ignore_above": 256
             }
-          },
-          "type": "text"
+          }
         }
       }
     },
@@ -65,17 +65,17 @@
       "template_english": {
         "path_match": "*.en",
         "mapping": {
+          "type": "text",
           "analyzer": "english_standard",
+          "search_analyzer": "english_standard",
           "fielddata": true,
           "fields": {
             "exact": {
-              "fielddata": true,
+              "type": "text",
               "analyzer": "exact",
-              "type": "text"
+              "fielddata": true
             }
-          },
-          "search_analyzer": "english_standard",
-          "type": "text"
+          }
         }
       }
     },
@@ -83,17 +83,17 @@
       "template_german": {
         "path_match": "*.de",
         "mapping": {
+          "type": "text",
           "analyzer": "german_standard",
+          "search_analyzer": "german_standard",
           "fielddata": true,
           "fields": {
             "exact": {
-              "fielddata": true,
+              "type": "text",
               "analyzer": "exact",
-              "type": "text"
+              "fielddata": true
             }
-          },
-          "search_analyzer": "german_standard",
-          "type": "text"
+          }
         }
       }
     },
@@ -101,17 +101,17 @@
       "template_italian": {
         "path_match": "*.it",
         "mapping": {
+          "type": "text",
           "analyzer": "italian_standard",
+          "search_analyzer": "italian_standard",
           "fielddata": true,
           "fields": {
             "exact": {
-              "fielddata": true,
+              "type": "text",
               "analyzer": "exact",
-              "type": "text"
+              "fielddata": true
             }
-          },
-          "search_analyzer": "italian_standard",
-          "type": "text"
+          }
         }
       }
     },
@@ -119,17 +119,17 @@
       "template_french": {
         "path_match": "*.fr",
         "mapping": {
+          "type": "text",
           "analyzer": "french_standard",
+          "search_analyzer": "french_standard",
           "fielddata": true,
           "fields": {
             "exact": {
-              "fielddata": true,
+              "type": "text",
               "analyzer": "exact",
-              "type": "text"
+              "fielddata": true
             }
-          },
-          "search_analyzer": "french_standard",
-          "type": "text"
+          }
         }
       }
     }
@@ -137,12 +137,16 @@
   "properties": {
     "data": {
       "properties": {
-        "something_entirely_else": "its_value"
+        "something_entirely_else": {
+          "type": "text"
+        }
       }
     },
     "facets": {
       "properties": {
-        "something_else": "its_value"
+        "something_else": {
+          "type": "text"
+        }
       }
     },
     "graph": {
@@ -157,7 +161,7 @@
     "included": {
       "properties": {
         "property1": {
-          "something": "its_value"
+          "type": "text"
         }
       }
     },
