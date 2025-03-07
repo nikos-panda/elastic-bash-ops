@@ -139,7 +139,7 @@ SCRIPT="./bin/modify_index.sh"
   export FAKE_CAT_INDICES='[{"index": "other_index"}]'
   run "$SCRIPT" --source missing_index --dest new_index --host "http://localhost:9200"
   [[ "$status" -ne 0 ]]
-  [[ "$output" == *"Source index 'missing_index' does not exist."* ]]
+  [[ "$output" == *"Source index missing_index does not exist."* ]]
   unset FAKE_CAT_INDICES
 }
 
