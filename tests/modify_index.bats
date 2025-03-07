@@ -232,8 +232,8 @@ assert_contains() {
   add_doc "test_src_config" '{"dummy": "data"}'
   refresh_index "test_src_config"
   
-  settings_file=modify_index_mock_settings.json
-  mappings_file=modify_index_mock_mappings.json
+  settings_file=./tests/modify_index_mock_settings.json
+  mappings_file=./tests/modify_index_mock_mappings.json
 
   run $SCRIPT --source test_src_config --dest test_dest_config --host "$ES_HOST" --settings "$settings_file" --mappings "$mappings_file" --noninteractive
   [ "$status" -eq 0 ]
