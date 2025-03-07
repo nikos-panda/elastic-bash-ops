@@ -232,27 +232,8 @@ assert_contains() {
   add_doc "test_src_config" '{"dummy": "data"}'
   refresh_index "test_src_config"
   
-  # Create temporary settings file.
-  settings_file=$(mktemp)
-  cat > "$settings_file" <<EOF
-{
-  "index": {
-    "number_of_shards": "1",
-    "number_of_replicas": "0"
-  }
-}
-EOF
-
-  # Create temporary mappings file.
-  mappings_file=$(mktemp)
-  cat > "$mappings_file" <<EOF
-{
-  "properties": {
-    "field1": {"type": "text"},
-    "field2": {"type": "keyword"}
-  }
-}
-EOF
+  settings_file=modify_index_mock_settings.json
+  mappings_file=modify_index_mock_mappings.json
 
   run $SCRIPT --source test_src_config --dest test_dest_config --host "$ES_HOST" --settings "$settings_file" --mappings "$mappings_file" --noninteractive
   [ "$status" -eq 0 ]
