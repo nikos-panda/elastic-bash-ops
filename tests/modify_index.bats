@@ -248,7 +248,7 @@ assert_contains() {
   
   # Same as above for mapping
   dest_mappings=$(curl -s "$ES_HOST/test_dest_config/_mapping")
-  mappings_test=$(echo "$dest_mappings" | jq '.[].mappings.properties.included.properties.property1.type')
+  mappings_test=$(echo "$dest_mappings" | jq -r '.[].mappings.properties.included.properties.property1.type')
   [ "$mappings_test" = "text" ]
   
   delete_index "test_src_config"
