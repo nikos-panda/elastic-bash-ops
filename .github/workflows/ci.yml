@@ -115,8 +115,14 @@ jobs:
           chmod +x bin/*.sh
 
       - name: Run changed tests
+        if: ${{ steps.changed-tests.outputs.TEST_FILES != '' }}
         run: |
-          echo "Running tests: $TEST_FILES"
+          echo "Running tests on: $TEST_FILES"
           bats $TEST_FILES
         env:
           TEST_FILES: ${{ steps.changed-tests.outputs.TEST_FILES }}
+
+      - name: No tests to run
+        if: ${{ steps.changed-tests.outputs.TEST_FILES == '' }}
+        run: |
+          echo "No changes in Bats or scripts were detected. Tests were skipped."
